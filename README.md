@@ -27,7 +27,7 @@ any USB/IP server.
 ### Share devices from a Linux box or Raspberry Pi
 
 ```bash
-git clone https://github.com/ameggs/OpenUSBIP.git
+git clone https://github.com/NotADeveloper4665/joesbad-usb.git
 cd OpenUSBIP
 ./install-server.sh
 ```
@@ -39,7 +39,7 @@ over mDNS, so clients find it without being told an address.
 ### Use devices from a desktop
 
 ```bash
-git clone https://github.com/ameggs/OpenUSBIP.git
+git clone https://github.com/NotADeveloper4665/joesbad-usb.git
 cd OpenUSBIP
 ./install-client.sh
 ```
@@ -70,7 +70,7 @@ not part of this project; OpenUSBIP does not ship a Windows server. See
 ### Use devices from a headless server (Proxmox, a NAS, any Debian box)
 
 ```bash
-git clone https://github.com/ameggs/OpenUSBIP.git
+git clone https://github.com/NotADeveloper4665/joesbad-usb.git
 cd OpenUSBIP
 sudo ./install-hub.sh
 ```
@@ -98,6 +98,10 @@ MTP and its OTG devices over USB/IP.
 
 ---
 
+## Building from source
+
+See [BUILDING.md](BUILDING.md) for reproducible commands for the Linux Python package, Windows desktop executable, Android APK, and Linux server/hub. GitHub Actions also builds downloadable artifacts; see the repository Actions tab.
+
 ## What each part does
 
 ### Desktop client (`src/`)
@@ -110,6 +114,9 @@ Python and PySide6.
 - **System tray** with quick attach/detach, so it can sit in the background.
 - **Persistent settings** — manually added servers and window geometry survive
   a restart.
+- **Remembered devices** — mark a device in the Startup column, then enable
+  *Servers → Auto-attach remembered devices* to attach it automatically when
+  its server is selected. Rules are stored per bus ID and server address.
 - All blocking work runs on a thread pool, so an unreachable server never
   freezes the UI.
 
@@ -272,23 +279,21 @@ port-forward 3240 or 8765.**
 ## Development
 
 ```bash
-# Python
-pip install -r requirements-dev.txt
-QT_QPA_PLATFORM=offscreen pytest        # 255 tests
+python -m pip install -r requirements-dev.txt
+QT_QPA_PLATFORM=offscreen pytest
 ruff check .
 
-# Android
 cd android
-export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 ANDROID_HOME=$HOME/Android/Sdk
-./gradlew :app:testDebugUnitTest        # 184 tests, no device needed
+./gradlew :app:testDebugUnitTest
 ./gradlew :app:assembleDebug
 ```
 
-CI runs the Python suite on 3.10 and 3.12, lints, byte-compiles the tree and
-syntax-checks the installers. A separate Windows job runs the same suite on a
-`windows-latest` runner — where the Program Files search and the elevation
-handling actually execute — parse-checks every PowerShell script, builds both
-executables with PyInstaller and smoke-tests the server one.
+CI runs Python tests on 3.10 and 3.12, lints, byte-compiles the Python
+applications, syntax-checks the shell installers, builds the Windows client,
+and runs Android JVM tests plus a debug APK build. The separate
+`Build distributables` workflow also packages the Linux Python wheel/source
+distribution and uploads the Windows ZIP and Android APK as downloadable
+workflow artifacts.
 
 **A note on how this codebase is tested.** The protocol layers — USB/IP wire
 format, SCSI, Bulk-Only Transport, PTP/MTP — are deliberately free of platform

@@ -63,6 +63,7 @@ class MainWindow(QMainWindow):
         self.config = ConfigManager()
         self.usbip = USBIPWrapper()
         self.discovery = ServerDiscovery()
+        self._auto_attach_attempted: set[tuple[str, str]] = set()
         self.server_discovered.connect(self.on_server_discovered)
 
         # Re-add servers the user saved in a previous session. Without this
@@ -172,7 +173,7 @@ class MainWindow(QMainWindow):
         splitter.addWidget(self.server_widget)
 
         # Device list (right side)
-        self.device_widget = DeviceListWidget(self.usbip)
+        self.device_widget = DeviceListWidget(self.usbip, self.config)
         # Reuse the widget's fetches for the tray rather than issuing a second
         # identical usbip call for every refresh.
         self.device_widget.devices_loaded.connect(self._on_devices_loaded)
@@ -235,6 +236,15 @@ class MainWindow(QMainWindow):
         toggle_discovery_action.setChecked(True)
         toggle_discovery_action.triggered.connect(self.toggle_discovery)
         servers_menu.addAction(toggle_discovery_action)
+
+        auto_attach_action = QAction("Auto-attach remembered devices", self)
+        auto_attach_action.setCheckable(True)
+        auto_attach_action.setChecked(self.config.config.auto_attach_on_startup)
+        auto_attach_action.setToolTip(
+            "Automatically attach remembered devices when their server is selected"
+        )
+        auto_attach_action.triggered.connect(self.toggle_auto_attach)
+        servers_menu.addAction(auto_attach_action)
 
         # Help menu
         help_menu = menubar.addMenu("&Help")
@@ -324,9 +334,56 @@ class MainWindow(QMainWindow):
         self.update_status("Refreshed")
 
     def _on_devices_loaded(self, server_ip: str, devices: list):
-        """Mirror a completed remote-device fetch into the tray menu."""
+        """Mirror device results and apply saved auto-attach rules."""
         if self.tray and devices:
             self.tray.update_devices(server_ip, devices)
+
+        if (
+            not self.config.config.auto_attach_on_startup
+            or self.current_server is None
+            or self.current_server.ip_address != server_ip
+        ):
+            return
+
+        rules = self.config.get_auto_attach_devices()
+        attached = {
+            (item.get("remote_host"), item.get("busid"))
+            for item in self.device_widget.attached_devices
+        }
+        for device in devices:
+            key = (server_ip, device.busid)
+            if (
+                rules.get(device.busid) != server_ip
+                or device.state.value != "available"
+                or key in self._auto_attach_attempted
+                or (server_ip, device.busid) in attached
+            ):
+                continue
+
+            # Mark before dispatch so repeated refreshes cannot race and
+            # launch duplicate attach operations for the same device.
+            self._auto_attach_attempted.add(key)
+            logger.info("Auto-attaching remembered device %s from %s", device.busid, server_ip)
+            server = self.current_server
+            run_async(
+                self.usbip.attach_device,
+                server.ip_address,
+                device.busid,
+                server.port,
+                on_result=lambda outcome, b=device.busid: self._on_auto_attach_finished(outcome, b),
+                on_error=lambda msg, b=device.busid: self._on_auto_attach_finished((False, msg), b),
+            )
+
+    def _on_auto_attach_finished(self, outcome, busid: str):
+        """Handle an automatic attach without interrupting the user with dialogs."""
+        success, message = outcome
+        if success:
+            logger.info("Remembered device %s attached: %s", busid, message)
+            self.device_widget.refresh_attached_devices()
+            if self.current_server:
+                self.device_widget.load_devices(self.current_server)
+        else:
+            logger.warning("Could not auto-attach remembered device %s: %s", busid, message)
 
     def _on_attached_loaded(self, attached: list):
         """Mirror a completed attached-device fetch into the tray menu."""
@@ -341,6 +398,12 @@ class MainWindow(QMainWindow):
             self.discovery.stop()
             logger.info("Server discovery stopped")
             self.update_status("Auto-discovery disabled")
+
+    def toggle_auto_attach(self, enabled: bool):
+        """Persist whether remembered devices should attach automatically."""
+        self.config.config.auto_attach_on_startup = enabled
+        if not self.config.save():
+            logger.error("Could not save auto-attach preference")
 
     def update_status(self, message: str):
         """Update status bar message"""

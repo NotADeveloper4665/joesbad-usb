@@ -4,6 +4,14 @@ All notable changes to OpenUSBIP will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Remembered-device auto-attach for the desktop client.** Devices can be
+  marked from the available-device table and optionally attached when their
+  server is selected. Attach attempts run through the existing worker pool,
+  are deduplicated per session, and do not interrupt the user with modal
+  dialogs. The feature is opt-in and persists its rules in the existing config.
+
 ### Removed
 
 - **The Windows server executable (`OpenUSBIPServer.exe`) and its installer

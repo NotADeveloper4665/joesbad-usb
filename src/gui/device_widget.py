@@ -44,10 +44,11 @@ class DeviceListWidget(QWidget):
     devices_loaded = Signal(str, list)  # server_ip, devices
     attached_loaded = Signal(list)
 
-    def __init__(self, usbip: USBIPWrapper):
+    def __init__(self, usbip: USBIPWrapper, config=None):
         super().__init__()
 
         self.usbip = usbip
+        self.config = config
         self.current_server: USBIPServer | None = None
         self.devices: list[USBDevice] = []
         self.attached_devices = []
@@ -74,9 +75,9 @@ class DeviceListWidget(QWidget):
 
         # Device table
         self.device_table = QTableWidget()
-        self.device_table.setColumnCount(5)
+        self.device_table.setColumnCount(6)
         self.device_table.setHorizontalHeaderLabels([
-            "Bus ID", "Vendor:Product", "Description", "Status", "Action"
+            "Bus ID", "Vendor:Product", "Description", "Status", "Action", "Startup"
         ])
         self.device_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.device_table.setSelectionMode(QAbstractItemView.SingleSelection)
@@ -89,6 +90,7 @@ class DeviceListWidget(QWidget):
         header.setSectionResizeMode(2, QHeaderView.Stretch)
         header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(5, QHeaderView.ResizeToContents)
 
         available_layout.addWidget(self.device_table)
 
@@ -234,6 +236,46 @@ class DeviceListWidget(QWidget):
             attach_btn.setEnabled(False)
 
         self.device_table.setCellWidget(row, 4, attach_btn)
+
+        # Remember this device for optional automatic attachment on startup.
+        auto_btn = QPushButton("Auto-attach")
+        auto_btn.setCheckable(True)
+        auto_btn.setEnabled(self.config is not None and self.current_server is not None)
+        if self.config is not None and self.current_server is not None:
+            remembered = self.config.get_auto_attach_devices()
+            auto_btn.setChecked(
+                remembered.get(device.busid) == self.current_server.ip_address
+            )
+        auto_btn.toggled.connect(
+            lambda checked, busid=device.busid, button=auto_btn:
+                self._set_auto_attach(busid, checked, button)
+        )
+        self.device_table.setCellWidget(row, 5, auto_btn)
+
+    def _set_auto_attach(self, busid: str, enabled: bool, button: QPushButton):
+        """Persist or remove the selected device's startup attachment rule."""
+        if self.config is None or self.current_server is None:
+            button.setChecked(False)
+            return
+
+        if enabled:
+            self.config.add_auto_attach_device(busid, self.current_server.ip_address)
+        else:
+            self.config.remove_auto_attach_device(busid)
+
+        if not self.config.save():
+            logger.error("Could not save auto-attach rule for %s", busid)
+            button.blockSignals(True)
+            button.setChecked(not enabled)
+            button.blockSignals(False)
+            return
+
+        logger.info(
+            "%s auto-attach rule for %s from %s",
+            "Saved" if enabled else "Removed",
+            busid,
+            self.current_server.ip_address,
+        )
 
     def get_status_icon(self, state: DeviceState) -> str:
         """Get icon for device state"""

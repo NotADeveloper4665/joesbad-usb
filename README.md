@@ -110,6 +110,9 @@ Python and PySide6.
 - **System tray** with quick attach/detach, so it can sit in the background.
 - **Persistent settings** — manually added servers and window geometry survive
   a restart.
+- **Remembered devices** — mark a device in the Startup column, then enable
+  *Servers → Auto-attach remembered devices* to attach it automatically when
+  its server is selected. Rules are stored per bus ID and server address.
 - All blocking work runs on a thread pool, so an unreachable server never
   freezes the UI.
 

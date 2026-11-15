@@ -3,8 +3,8 @@
 # OpenUSBIP Server - One-Command Installer
 # For Raspberry Pi and Linux SBCs
 #
-# Usage: curl -sSL https://raw.githubusercontent.com/ameggs/OpenUSBIP/main/install-server.sh | bash
-# Or: wget -qO- https://raw.githubusercontent.com/ameggs/OpenUSBIP/main/install-server.sh | bash
+# Usage: curl -sSL https://raw.githubusercontent.com/NotADeveloper4665/joesbad-usb/main/install-server.sh | bash
+# Or: wget -qO- https://raw.githubusercontent.com/NotADeveloper4665/joesbad-usb/main/install-server.sh | bash
 #
 
 set -e
@@ -148,7 +148,7 @@ else
         sudo apt-get install -y git > /dev/null 2>&1
     fi
     TMP_CLONE="$(mktemp -d)"
-    git clone --depth 1 https://github.com/ameggs/OpenUSBIP.git "$TMP_CLONE/repo" > /dev/null 2>&1
+    git clone --depth 1 https://github.com/NotADeveloper4665/joesbad-usb.git "$TMP_CLONE/repo" > /dev/null 2>&1
     cp -r "$TMP_CLONE/repo/openusbip_server.py" "$TMP_CLONE/repo/src" "$INSTALL_DIR/"
     [ -f "$TMP_CLONE/repo/requirements.txt" ] && cp "$TMP_CLONE/repo/requirements.txt" "$INSTALL_DIR/"
     rm -rf "$TMP_CLONE"
